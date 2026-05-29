@@ -150,7 +150,9 @@ export async function scrapeAnimeDetail(slug: string): Promise<AnimeDetail> {
   const episodes = await scrapeAnimeEpisodes(slug);
 
   // Fetch AniList + MAL IDs concurrently (non-blocking — won't throw)
-  const { anilistId, malId: malIdFromAnilist } = await fetchAnilistIds(title, titleJp).catch(() => ({}));
+  const { anilistId, malId: malIdFromAnilist } = await fetchAnilistIds(title, titleJp).catch(
+    (): { anilistId?: number; malId?: number } => ({})
+  );
 
   const malId = malIdFromPage ?? malIdFromAnilist;
 
