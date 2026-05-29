@@ -116,6 +116,46 @@ export default function HomePage() {
     },
     {
       method: "GET",
+      path: "/api/watch/anilist/:id/:ep",
+      description: "Get streaming sources directly by AniList ID + episode number. Resolves slug internally — no slug needed.",
+      params: [
+        { name: "id", type: "number", optional: false, desc: "AniList anime ID (e.g. 21 for One Piece)" },
+        { name: "ep", type: "number", optional: false, desc: "Episode number to watch" },
+      ],
+      example: "/api/watch/anilist/21/1163",
+    },
+    {
+      method: "GET",
+      path: "/api/watch/mal/:id/:ep",
+      description: "Get streaming sources directly by MAL ID + episode number. Resolves slug internally — no slug needed.",
+      params: [
+        { name: "id", type: "number", optional: false, desc: "MyAnimeList anime ID (e.g. 21 for One Piece)" },
+        { name: "ep", type: "number", optional: false, desc: "Episode number to watch" },
+      ],
+      example: "/api/watch/mal/21/1163",
+    },
+    {
+      method: "GET",
+      path: "/api/anime/by-anilist/:id",
+      description: "Resolve an AniList ID to an anikoto slug + metadata (malId, anilistId, title).",
+      params: [
+        { name: "id", type: "number", optional: false, desc: "AniList anime ID" },
+        { name: "refresh", type: "string", optional: true, desc: "Set to 1 to bypass cache" },
+      ],
+      example: "/api/anime/by-anilist/21",
+    },
+    {
+      method: "GET",
+      path: "/api/anime/by-mal/:id",
+      description: "Resolve a MAL ID to an anikoto slug + metadata (malId, anilistId, title).",
+      params: [
+        { name: "id", type: "number", optional: false, desc: "MyAnimeList anime ID" },
+        { name: "refresh", type: "string", optional: true, desc: "Set to 1 to bypass cache" },
+      ],
+      example: "/api/anime/by-mal/21",
+    },
+    {
+      method: "GET",
       path: "/api/proxy",
       description: "Internal streaming proxy to bypass Cloudflare and CORS restrictions for m3u8 video streams and subtitles.",
       params: [
@@ -123,7 +163,6 @@ export default function HomePage() {
         { name: "referer", type: "string", optional: true, desc: "The referer header to bypass hotlink protection" },
       ],
       example: "/api/proxy?url=https%3A%2F%2Fcdn.mewstream.buzz%2F...%2Fmaster.m3u8&referer=https%3A%2F%2Fmegaplay.buzz%2F",
-
     },
   ];
 
@@ -198,7 +237,7 @@ export default function HomePage() {
         </p>
 
         <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
-          {["12 Endpoints", "In-Memory Cache", "TypeScript"].map((badge) => (
+          {["16 Endpoints", "In-Memory Cache", "TypeScript"].map((badge) => (
             <span key={badge} style={{
               background: "rgba(255,255,255,0.05)",
               border: "1px solid rgba(255,255,255,0.1)",
