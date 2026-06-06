@@ -75,7 +75,7 @@ async function resolveAndWatch(malId: number, epNum: string) {
   const slug = await resolveSlug(
     media.title,
     malId,
-    { type: media.format, year: media.seasonYear, episodes: media.episodes }
+    { type: media.format, year: media.seasonYear, episodes: media.episodes }, media.id
   );
 
   if (!slug) throw new Error(`Could not find "${media.title.english || media.title.romaji}" on anikototv`);

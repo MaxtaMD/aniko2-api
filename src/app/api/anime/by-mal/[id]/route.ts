@@ -74,7 +74,7 @@ async function resolveByMalId(malId: number) {
   const slug = await resolveSlug(
     media.title,
     malId,
-    { type: media.format, year: media.seasonYear, episodes: media.episodes }
+    { type: media.format, year: media.seasonYear, episodes: media.episodes }, media.id
   );
 
   return {
