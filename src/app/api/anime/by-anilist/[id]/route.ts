@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getOrSet } from '@/lib/cache';
 import { CACHE_TTL } from '@/lib/constants';
-import { resolveSlug } from '@/lib/resolveSlug';
+import { resolveSlug, AniListRelationEdge } from '@/lib/resolveSlug';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,12 +37,14 @@ async function resolveByAnilistId(anilistId: number) {
   const query = `
     query ($id: Int) {
       Media(id: $id, type: ANIME) {
-        id
-        idMal
-        seasonYear
-        format
-        episodes
+        id idMal seasonYear format episodes
         title { romaji english native }
+        relations {
+          edges {
+            relationType
+            node { id title { romaji english } }
+          }
+        }
       }
     }
   `;
@@ -58,12 +60,9 @@ async function resolveByAnilistId(anilistId: number) {
   const json = (await resp.json()) as {
     data?: {
       Media?: {
-        id: number;
-        idMal?: number;
-        seasonYear?: number;
-        format?: string;
-        episodes?: number;
+        id: number; idMal?: number; seasonYear?: number; format?: string; episodes?: number;
         title: { romaji?: string; english?: string; native?: string };
+        relations?: { edges: AniListRelationEdge[] };
       };
     };
   };
@@ -74,7 +73,8 @@ async function resolveByAnilistId(anilistId: number) {
   const slug = await resolveSlug(
     media.title,
     media.idMal,
-    { type: media.format, year: media.seasonYear, episodes: media.episodes }, anilistId
+    { type: media.format, year: media.seasonYear, episodes: media.episodes },
+    media.relations?.edges ?? []
   );
 
   return {
