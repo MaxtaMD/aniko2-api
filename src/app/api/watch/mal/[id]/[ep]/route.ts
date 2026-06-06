@@ -1,18 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getOrSet } from '@/lib/cache';
 import { CACHE_TTL } from '@/lib/constants';
-import { scrapeSearch } from '@/lib/scrapers/search.scraper';
 import { scrapeWatch } from '@/lib/scrapers/watch.scraper';
+import { resolveSlug } from '@/lib/resolveSlug';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * GET /api/watch/mal/[id]/[ep]
- *
- * Examples:
- *   /api/watch/mal/21/1163
- *   /api/watch/mal/16498/1
- */
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string; ep: string }> }
@@ -47,7 +40,10 @@ async function resolveAndWatch(malId: number, ep: string) {
       Media(idMal: $idMal, type: ANIME) {
         id
         idMal
-        title { romaji english }
+        seasonYear
+        format
+        episodes
+        title { romaji english native }
       }
     }
   `;
@@ -61,27 +57,29 @@ async function resolveAndWatch(malId: number, ep: string) {
   if (!resp.ok) throw new Error(`AniList API error: ${resp.status}`);
 
   const json = (await resp.json()) as {
-    data?: { Media?: { id: number; idMal?: number; title: { romaji?: string; english?: string } } };
+    data?: {
+      Media?: {
+        id: number;
+        idMal?: number;
+        seasonYear?: number;
+        format?: string;
+        episodes?: number;
+        title: { romaji?: string; english?: string; native?: string };
+      };
+    };
   };
 
   const media = json?.data?.Media;
   if (!media) throw new Error(`MAL ID ${malId} not found via AniList`);
 
-  const searchTitle = media.title.english || media.title.romaji || '';
-  const slug = await resolveSlug(searchTitle, media.title.romaji);
-  if (!slug) throw new Error(`Could not find "${searchTitle}" on anikoto`);
+  const slug = await resolveSlug(
+    media.title,
+    malId,
+    { type: media.format, year: media.seasonYear, episodes: media.episodes }
+  );
+
+  if (!slug) throw new Error(`Could not find "${media.title.english || media.title.romaji}" on anikototv`);
 
   const watchData = await scrapeWatch(slug, ep);
-
   return { malId, anilistId: media.id, slug, ...watchData };
-}
-
-async function resolveSlug(title: string, fallback?: string): Promise<string | null> {
-  for (const t of [title, fallback].filter(Boolean) as string[]) {
-    try {
-      const result = await scrapeSearch(t);
-      if (result.results.length > 0) return result.results[0].slug;
-    } catch { /* try next */ }
-  }
-  return null;
 }

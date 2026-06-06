@@ -28,7 +28,8 @@ function extractMalId($: cheerio.CheerioAPI): number | undefined {
  */
 async function fetchAnilistIds(
   title: string,
-  titleJp?: string
+  titleJp?: string,
+  titleNative?: string
 ): Promise<{ anilistId?: number; malId?: number }> {
   const query = `
     query ($search: String) {
@@ -40,7 +41,7 @@ async function fetchAnilistIds(
     }
   `;
 
-  const searches = [title, titleJp].filter(Boolean) as string[];
+  const searches = [...new Set([title, titleJp, titleNative].filter(Boolean) as string[])];
 
   for (const search of searches) {
     try {

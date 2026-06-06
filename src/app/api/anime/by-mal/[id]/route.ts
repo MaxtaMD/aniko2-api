@@ -1,22 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getOrSet } from '@/lib/cache';
 import { CACHE_TTL } from '@/lib/constants';
+import { resolveSlug } from '@/lib/resolveSlug';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * GET /api/anime/by-mal/[id]
- *
- * Resolves a MyAnimeList (MAL) anime ID to an anikoto slug.
- * Uses AniList GraphQL to resolve the MAL ID to a title + AniList ID,
- * then searches anikoto for that title.
- *
- * Returns: { ok: true, data: { slug, malId, anilistId, title } }
- *
- * Examples:
- *   /api/anime/by-mal/21  (One Piece)
- *   /api/anime/by-mal/16498  (Attack on Titan S2)
- */
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -46,12 +34,14 @@ export async function GET(
 }
 
 async function resolveByMalId(malId: number) {
-  // AniList can search by MAL ID via idMal field
   const query = `
     query ($idMal: Int) {
       Media(idMal: $idMal, type: ANIME) {
         id
         idMal
+        seasonYear
+        format
+        episodes
         title { romaji english native }
       }
     }
@@ -66,45 +56,34 @@ async function resolveByMalId(malId: number) {
   if (!resp.ok) throw new Error(`AniList API error: ${resp.status}`);
 
   const json = (await resp.json()) as {
-    data?: { Media?: { id: number; idMal?: number; title: { romaji?: string; english?: string; native?: string } } };
+    data?: {
+      Media?: {
+        id: number;
+        idMal?: number;
+        seasonYear?: number;
+        format?: string;
+        episodes?: number;
+        title: { romaji?: string; english?: string; native?: string };
+      };
+    };
   };
 
   const media = json?.data?.Media;
   if (!media) throw new Error(`MAL ID ${malId} not found via AniList`);
 
-  const anilistId = media.id;
-  const searchTitle = media.title.english || media.title.romaji || '';
-
-  // Search anikoto for the title
-  const slug = await searchAnikotoSlug(searchTitle, media.title.romaji);
+  const slug = await resolveSlug(
+    media.title,
+    malId,
+    { type: media.format, year: media.seasonYear, episodes: media.episodes }
+  );
 
   return {
     malId,
-    anilistId,
+    anilistId: media.id,
     slug,
-    title: searchTitle || media.title.romaji,
+    title: media.title.english || media.title.romaji,
     titleRomaji: media.title.romaji,
     titleNative: media.title.native,
     animeUrl: slug ? `/api/anime/${slug}` : null,
   };
-}
-
-async function searchAnikotoSlug(
-  title: string,
-  fallbackTitle?: string
-): Promise<string | null> {
-  const { scrapeSearch } = await import('@/lib/scrapers/search.scraper');
-
-  for (const t of [title, fallbackTitle].filter(Boolean) as string[]) {
-    try {
-      const result = await scrapeSearch(t);
-      if (result.results.length > 0) {
-        return result.results[0].slug;
-      }
-    } catch {
-      // try next
-    }
-  }
-
-  return null;
 }
