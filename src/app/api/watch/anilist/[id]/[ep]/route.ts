@@ -49,8 +49,8 @@ function normalizeTitle(s: string): string {
 // ── Score a search candidate against known titles ─────────────────────────────
 // Mirrors the scoring logic from Anivexa's anikoto provider
 function scoreCandidate(
-  candidate: { slug: string; title: string; titleJp?: string; type?: string; year?: string },
-  known: { english?: string; romaji?: string; native?: string; type?: string; year?: number }
+  candidate: { slug: string; title: string; titleJp?: string; type?: string; year?: string; date?: string },
+  known: { english?: string; romaji?: string; native?: string; type?: string; year?: number; episodes?: number }
 ): number {
   let score = 0;
 
@@ -69,16 +69,46 @@ function scoreCandidate(
   if (normNat && cJp === normNat) score += 40;
   else if (normRom && cJp === normRom) score += 35;
 
-  // Type match/mismatch
+  // Type match/mismatch — normalize both sides to lowercase
+  // AniList returns "TV", "MOVIE", "OVA" etc (uppercase)
+  // Anikoto returns "TV", "Movie", "OVA" etc (mixed case)
   if (candidate.type && known.type) {
-    if (candidate.type.toLowerCase() === known.type.toLowerCase()) score += 20;
+    const cType = candidate.type.toLowerCase().replace('_', ' ');
+    const kType = known.type.toLowerCase().replace('_', ' ');
+    // Map AniList format values to anikoto equivalents
+    const typeMap: Record<string, string> = {
+      'movie': 'movie',
+      'tv': 'tv',
+      'ova': 'ova',
+      'ona': 'ona',
+      'special': 'special',
+      'music': 'music',
+      'tv short': 'tv',
+    };
+    const normalizedC = typeMap[cType] ?? cType;
+    const normalizedK = typeMap[kType] ?? kType;
+    if (normalizedC === normalizedK) score += 20;
     else score -= 30;
   }
 
-  // Year match/mismatch
-  if (candidate.year && known.year) {
-    if (parseInt(candidate.year) === known.year) score += 20;
+  // Year — extract from candidate.date string if candidate.year is absent
+  const candidateYear = candidate.year
+    ? parseInt(candidate.year)
+    : candidate.date
+      ? parseInt((candidate.date.match(/\d{4}/) ?? [])[0] ?? '0')
+      : 0;
+
+  if (candidateYear && known.year) {
+    if (candidateYear === known.year) score += 20;
     else score -= 15;
+  }
+
+  // Episode count match — helps distinguish between seasons of same series
+  const candidateEps = (candidate as { totalEpisodes?: number }).totalEpisodes ?? 0;
+  if (candidateEps && known.episodes) {
+    if (candidateEps === known.episodes) score += 25;
+    else if (Math.abs(candidateEps - known.episodes) <= 2) score += 10;
+    else score -= 10;
   }
 
   return score;
@@ -93,6 +123,7 @@ async function resolveAndWatch(anilistId: number, ep: string) {
         idMal
         seasonYear
         format
+        episodes
         title { romaji english native }
       }
     }
@@ -113,6 +144,7 @@ async function resolveAndWatch(anilistId: number, ep: string) {
         idMal?: number;
         seasonYear?: number;
         format?: string;
+        episodes?: number;
         title: { romaji?: string; english?: string; native?: string };
       };
     };
@@ -125,6 +157,7 @@ async function resolveAndWatch(anilistId: number, ep: string) {
   const slug = await resolveSlug(media.title, {
     type: media.format,
     year: media.seasonYear,
+    episodes: media.episodes,
   });
 
   if (!slug) {
@@ -141,7 +174,7 @@ async function resolveAndWatch(anilistId: number, ep: string) {
 // ── Resolve slug using multi-keyword search + scoring ─────────────────────────
 async function resolveSlug(
   title: { english?: string; romaji?: string; native?: string },
-  meta: { type?: string; year?: number }
+  meta: { type?: string; year?: number; episodes?: number }
 ): Promise<string | null> {
   // Collect unique non-empty search keywords
   const keywords = [...new Set(
@@ -172,7 +205,7 @@ async function resolveSlug(
     .map((c) => ({
       ...c,
       score: scoreCandidate(
-        { ...c, type: (c as { type?: string }).type, year: (c as { year?: string }).year },
+        { ...c, type: (c as { type?: string }).type, year: (c as { year?: string }).year, date: (c as { date?: string }).date },
         { ...title, ...meta }
       ),
     }))
