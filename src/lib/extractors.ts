@@ -82,6 +82,47 @@ export async function extractMegacloud(embedUrl: string): Promise<ExtractedStrea
   }
 }
 
+// ── VidWish extractor ─────────────────────────────────────────────────────────
+// VidWish uses the same getSources pattern as Megaplay but attr-based id extraction.
+export async function extractVidWish(embedUrl: string): Promise<ExtractedStream | null> {
+  try {
+    const origin = new URL(embedUrl).origin;
+    const referer = origin + '/';
+
+    const { data: html } = await axios.get(embedUrl, {
+      headers: {
+        ...DEFAULT_HEADERS,
+        Referer: 'https://hianimes.re/',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+      timeout: 10_000,
+    });
+
+    const idMatch = (html as string).match(/data-id="([^"]*)"/);
+    if (!idMatch?.[1]) return null;
+
+    const fileId = idMatch[1];
+    const { data } = await axios.get(
+      `${origin}/stream/getSources?id=${fileId}&id=${fileId}`,
+      {
+        headers: {
+          ...DEFAULT_HEADERS,
+          Referer: referer,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        timeout: 10_000,
+      }
+    );
+
+    const m3u8   = data?.sources?.file;
+    const tracks = data?.tracks ?? [];
+    return m3u8 ? { m3u8, referer, tracks } : null;
+  } catch (err) {
+    console.error('VidWish extraction failed:', err);
+    return null;
+  }
+}
+
 export async function extractStreamUrl(embedUrl: string): Promise<ExtractedStream | null> {
   let currentUrl = embedUrl;
   let html = '';
@@ -161,12 +202,21 @@ export async function extractStreamUrl(embedUrl: string): Promise<ExtractedStrea
   }
 
   const host = new URL(currentUrl).hostname;
-  
-  if (host.includes('megaplay.buzz') || host.includes('vidwish.live')) {
+
+  // VidWish — dedicated extractor, fall back to megaplay if it fails
+  if (host.includes('vidwish.live')) {
+    const vw = await extractVidWish(currentUrl);
+    if (vw) return vw;
+    return extractMegaplay(currentUrl.replace('vidwish.live', 'megaplay.buzz'));
+  }
+
+  if (host.includes('megaplay.buzz')) {
     return extractMegaplay(currentUrl);
-  } else if (host.includes('megacloud.blog')) {
+  }
+
+  if (host.includes('megacloud.blog')) {
     return extractMegacloud(currentUrl);
   }
-  
+
   return null;
 }

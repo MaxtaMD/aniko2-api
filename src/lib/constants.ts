@@ -1,4 +1,4 @@
-export const BASE_URL = 'https://anikoto.net';
+export const BASE_URL = 'https://anikototv.to';
 
 /**
  * Cloudflare Worker proxy URL.
@@ -17,7 +17,7 @@ export const DEFAULT_HEADERS = {
   'Accept-Encoding': 'gzip, deflate, br',
   Connection: 'keep-alive',
   'Cache-Control': 'no-cache',
-  Referer: 'https://anikoto.net/',
+  Referer: 'https://anikototv.to/',
 };
 
 /** Cache TTL in seconds */
